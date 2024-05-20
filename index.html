@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+  <title>Food Tracker</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100;400;500&display=swap" rel="stylesheet">
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+  <link rel="icon" type="image/png" href="img/fav.png">
+  <link rel="apple-touch-icon" href="img/icn-L.png">
+  <link rel="apple-touch-icon" type="image/png" sizes="152x152" href="img/icon-152.png">
+  <link rel="apple-touch-icon" type="image/png" sizes="167x167" href="img/icon-167.png">
+  <link rel="apple-touch-icon" type="image/png" sizes="180x180" href="img/icon-180.png">
+</head>
+<body>
+<img class="header" src="img/logo.png"/>
+<div class="container container-first">
+  <div class="progress-wrapper">
+    <div class="progress-label">Calories:</div>
+    <div class="progress-bar progress-bar-cal">
+      <div id="calories-progress" class="progress calories"> <div class="progress-text" id="tracked-cal-text"></div></div>
+      <div class="remaining-text" id="remaining-cal-text"></div>
+    </div>
+  </div>
+  <div class="progress-wrapper">
+    <div class="progress-label">Proteins:</div>
+    <div class="progress-bar progress-bar-pro">
+      <div id="protein-progress" class="progress protein"> <div class="progress-text" id="tracked-pro-text"></div></div>
+      <div class="remaining-text" id="remaining-pro-text"></div>
+    </div>
+  </div>
+</div>
+<p id="message"></p>
+
+<div class="container eatentoday">
+  <p>Eaten today:</p>
+  <div id="tracked-items-list"></div>
+</div>
+
+<div class="container">
+  <input type="text" id="search-bar" placeholder="Search pre-defined meals...">
+  <div id="meal-buttons"></div>
+  <button id="expand-button">Show More</button>
+  <button id="contract-button">Show Less</button>
+</div>
+
+<div class="container">
+  <label for="calories">Name:</label>
+  <input type="text" id="manualName" placeholder="Enter name"> 
+  <label for="calories">Calories:</label>
+  <input type="number" id="calories" placeholder="Enter calories">  
+  <label for="protein">Proteins:</label>
+  <input type="number" id="protein" placeholder="Enter proteins">
+  <button id="add-entry">Add Meal</button>
+</div>
+
+<button id="reset-button">Reset Counters</button>
+<script>
+  const dailyGoalCalories = 3000; // Set your daily calorie goal here
+  const dailyGoalProtein = 140; // Set your daily protein goal here
+
+  // Function to fetch and parse CSV file
+  async function loadCSV(url) {
+    const response = await fetch(url);
+    const data = await response.text();
+    const rows = data.split('\n').slice(1); // Skip header row
+    const meals = rows.map(row => {
+      const columns = row.split(';').map(column => column.trim()); // Trim each column
+      if (columns.length === 3) {
+        const [name, calories, protein] = columns;
+        return {
+          name: name.trim(),
+          calories: parseFloat(calories),
+          protein: parseFloat(protein.replace(',', '.'))
+        };
+      } else {
+        console.error('Invalid row format:', row);
+        return null; // or handle the error in another way
+      }
+    }).filter(Boolean); // Filter out any null values from invalid rows
+    return meals;
+  }
+  
+  function addManualEntry(cal,prot) {
+    var newButton = document.createElement('button');
+    newButton.classList.add("eatenMeal");
+    newButton.innerHTML = meal.name;
+    var hiddenInfo = document.createElement('span');
+    hiddenInfo.innerHTML = `Protein: ${meal.protein}, Calories: ${meal.calories}`;
+    hiddenInfo.style.display = 'none';
+    newButton.appendChild(hiddenInfo);
+    var closeButton = document.createElement('button');
+    closeButton.classList.add("removeEatenMeal");
+    closeButton.innerHTML = 'x';
+    newButton.appendChild(closeButton);
+    
+    // Generate a unique ID for the meal
+    const mealId = Date.now();
+
+    // Set the dataset property to include the mealId
+    newButton.dataset.mealId = mealId;
+
+    // Attach the new button to #tracked-items-list
+    document.getElementById('tracked-items-list').appendChild(newButton);
+
+    // Save the eaten meal to localStorage
+    let eatenMeals = JSON.parse(localStorage.getItem("eatenMeals")) || [];
+    const mealWithId = { ...meal, id: mealId }; // Assign the unique ID to the meal
+    eatenMeals.push(mealWithId);
+    localStorage.setItem("eatenMeals", JSON.stringify(eatenMeals));
+
+    // Add an event listener to the close (x) button
+    closeButton.addEventListener('click', function() {
+      const mealId = parseInt(this.parentElement.dataset.mealId);
+      removeEatenMealById(mealId);
+      this.parentElement.remove();
+    });
+  }
+
+  function reloadEatenMeal(meal) {
+    var newButton = document.createElement('button');
+    newButton.classList.add("eatenMeal");
+    newButton.innerHTML = meal.name;
+    var hiddenInfo = document.createElement('span');
+    hiddenInfo.innerHTML = `Protein: ${meal.protein}, Calories: ${meal.calories}`;
+    hiddenInfo.style.display = 'none';
+    newButton.appendChild(hiddenInfo);
+    var closeButton = document.createElement('button');
+    closeButton.classList.add("removeEatenMeal");
+    closeButton.innerHTML = 'x';
+    newButton.appendChild(closeButton);
+    
+    // Set the dataset property to include the mealId
+    newButton.dataset.mealId = meal.id; // Assuming meal has an 'id' property
+
+    // Attach the new button to #tracked-items-list
+    document.getElementById('tracked-items-list').appendChild(newButton);
+
+    closeButton.addEventListener('click', function() {
+      const mealId = parseInt(this.parentElement.dataset.mealId);
+      removeEatenMealById(mealId);
+      this.parentElement.remove();
+    });
+  }
+
+  function loadEatenMeals() {
+    let eatenMeals = JSON.parse(localStorage.getItem('eatenMeals')) || [];
+    eatenMeals.forEach(meal => {
+      reloadEatenMeal(meal);
+    });
+  }
+
+  function removeEatenMealById(mealId) {
+    let trackedData = JSON.parse(localStorage.getItem("trackedData")) || { calories: 0, protein: 0 };
+    let eatenMeals = JSON.parse(localStorage.getItem("eatenMeals")) || [];
+
+    const removedMealIndex = eatenMeals.findIndex(meal => meal.id === mealId); // Find the index of the meal by its unique identifier
+    if (removedMealIndex > -1) {
+      const removedMeal = eatenMeals[removedMealIndex];
+      trackedData.calories -= removedMeal.calories;
+      trackedData.protein -= removedMeal.protein;
+      eatenMeals.splice(removedMealIndex, 1); // Remove the meal from the array
+      localStorage.setItem("trackedData", JSON.stringify(trackedData));
+      localStorage.setItem("eatenMeals", JSON.stringify(eatenMeals));
+      updateProgressBars();
+    }
+  }
+
+  // Load pre-defined meals
+  const csvUrl = 'food.csv';
+  loadCSV(csvUrl)
+  .then(csvData => {
+    const mealButtonsContainer = $('#meal-buttons');
+    csvData.forEach(meal => {
+      const button = $('<button>').text(meal.name).addClass('meal-button');
+      button.click(() => {
+        addEatenMeal(meal);
+      });
+      mealButtonsContainer.append(button);
+    });
+  })
+  .catch(error => {
+    console.error('Error loading CSV:', error);
+  });
+
+  // Initialize progress bars
+  updateProgressBars();
+
+  // Function to add entry
+  function addManualEntry() {
+    const entryName = $('#manualName').val();
+    const calories = parseInt($('#calories').val());
+    const protein = parseInt($('#protein').val());
+
+    if (isNaN(calories) || isNaN(protein) || entryName.trim() === '') {
+      showMessage('Please enter valid values for name, calories, and protein.');
+      return;
+    }
+
+    const meal = {
+      name: entryName,
+      calories: calories,
+      protein: protein
+    };
+
+    addEatenMeal(meal);
+
+    // Clear input fields
+    $('#manualName').val('');
+    $('#calories').val('');
+    $('#protein').val('');
+  }
+
+  function addEatenMeal(meal) {
+    // Generate a unique ID for the meal
+    const mealId = Date.now();
+
+    // Update tracked data
+    let trackedData = JSON.parse(localStorage.getItem('trackedData')) || { calories: 0, protein: 0 };
+    trackedData.calories += meal.calories;
+    trackedData.protein += meal.protein;
+    localStorage.setItem('trackedData', JSON.stringify(trackedData));
+    updateProgressBars();
+
+    // Create meal button
+    var newButton = $('<button>').addClass("eatenMeal").text(meal.name);
+    var hiddenInfo = $('<span>').html(`Protein: ${meal.protein}, Calories: ${meal.calories}`).hide();
+    newButton.append(hiddenInfo);
+    var closeButton = $('<button>').addClass("removeEatenMeal").text('x');
+    newButton.append(closeButton);
+
+    // Set the dataset property to include the mealId
+    newButton.attr('data-meal-id', mealId);
+
+    // Attach event listener to the close (x) button
+    closeButton.click(function() {
+      const mealId = parseInt($(this).parent().attr('data-meal-id'));
+      removeEatenMealById(mealId);
+      $(this).parent().remove();
+    });
+
+    // Append the new button to #tracked-items-list
+    $('#tracked-items-list').append(newButton);
+
+    // Save the eaten meal to localStorage
+    let eatenMeals = JSON.parse(localStorage.getItem("eatenMeals")) || [];
+    const mealWithId = { ...meal, id: mealId }; // Assign the unique ID to the meal
+    eatenMeals.push(mealWithId);
+    localStorage.setItem("eatenMeals", JSON.stringify(eatenMeals));
+
+    showMessage('Entry added successfully.');
+  }
+
+  function removeEatenMealById(mealId) {
+    let trackedData = JSON.parse(localStorage.getItem("trackedData")) || { calories: 0, protein: 0 };
+    let eatenMeals = JSON.parse(localStorage.getItem("eatenMeals")) || [];
+
+    const removedMealIndex = eatenMeals.findIndex(meal => meal.id === mealId);
+    if (removedMealIndex > -1) {
+      const removedMeal = eatenMeals[removedMealIndex];
+      trackedData.calories -= removedMeal.calories;
+      trackedData.protein -= removedMeal.protein;
+      eatenMeals.splice(removedMealIndex, 1);
+      localStorage.setItem("trackedData", JSON.stringify(trackedData));
+      localStorage.setItem("eatenMeals", JSON.stringify(eatenMeals));
+      updateProgressBars();
+    }
+  }
+
+
+  // Function to update progress bars
+  function updateProgressBars() {
+    const trackedData = JSON.parse(localStorage.getItem('trackedData')) || { calories: 0, protein: 0 };
+    const caloriesPercentage = Math.min((trackedData.calories / dailyGoalCalories) * 100, 100);
+    const proteinPercentage = Math.min((trackedData.protein / dailyGoalProtein) * 100, 100);
+    const formatter = new Intl.NumberFormat('de-DE', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    });
+
+    $('#calories-progress').css('width', `${caloriesPercentage}%`);
+    $('#remaining-cal-text').css('width', `${100 - caloriesPercentage}%`);
+    $('#tracked-cal-text').text(trackedData.calories ? `${formatter.format(trackedData.calories)}kcal` : '');
+    $('#remaining-cal-text').text(trackedData.calories ? `${formatter.format(dailyGoalCalories - trackedData.calories)} kcal` : '');
+    
+    $('#protein-progress').css('width', `${proteinPercentage}%`);
+    $('#remaining-pro-text').css('width', `${100 - proteinPercentage}%`);
+    $('#tracked-pro-text').text(trackedData.protein ? `${formatter.format(trackedData.protein)}g` : '');
+    $('#remaining-pro-text').text(trackedData.protein ? `${formatter.format(dailyGoalProtein - trackedData.protein)}g` : '');
+
+    if (caloriesPercentage >= 100) {
+      $('#calories-progress').css('background', 'radial-gradient(circle, rgba(251,135,24,1) 14%, rgba(254,234,89,1) 93%, rgba(255,251,199,1) 100%)');
+      $('#remaining-cal-text').css('display', 'none');
+    } 
+    else {
+      $('#calories-progress').css('background', 'linear-gradient(90deg, rgb(48 154 70 / 44%) 14%, rgb(57 162 117 / 34%) 100%)');
+      $('#remaining-cal-text').css('display', 'initial');
+    }
+    if (proteinPercentage >= 100) {
+      $('#protein-progress').css('background', 'radial-gradient(circle, rgba(251,135,24,1) 14%, rgba(254,234,89,1) 93%, rgba(255,251,199,1) 100%)');
+      $('#remaining-pro-text').css('display', 'none');
+    } 
+    else {
+      $('#protein-progress').css('background', 'linear-gradient(90deg, rgb(150 241 255 / 44%) 14%, rgb(33 150 243 / 34%) 100%)');
+      $('#remaining-pro-text').css('display', 'initial');
+    }
+    if (caloriesPercentage >= 100 && proteinPercentage >= 100) {
+      showMessage('Daily goals reached!');
+    } else {
+      showMessage('');
+    }
+  }
+
+  // Function to display messages
+  function showMessage(message) {
+    $('#message').text(message);
+  }
+
+  // Reset data at the end of the day
+  setTimeout(function() {
+    localStorage.removeItem('trackedData');
+    updateProgressBars();
+  }, millisecondsUntilMidnight());
+
+  // Function to calculate milliseconds until midnight
+  function millisecondsUntilMidnight() {
+    const now = new Date();
+    const midnight = new Date();
+    midnight.setHours(24, 0, 0, 0);
+    return midnight - now;
+  }
+
+  // Functionality for search bar
+  $('#search-bar').keyup(function() {
+    const searchText = $(this).val().toLowerCase();
+    const buttons = $('#meal-buttons').children('.meal-button');
+    $("#meal-buttons").removeClass("meal-buttons-full");
+    $("#expand-button").css("display","block");
+    $("#contract-button").css("display","none");
+    buttons.each(function() {
+      const buttonText = $(this).text().toLowerCase();
+      if (buttonText.includes(searchText)) {
+        $(this).show();
+      } else {
+        $(this).hide();
+      }
+    });
+  });
+
+  // Functionality for Add Meal button
+  $('#add-entry').click(addManualEntry);
+
+  // Function to reset counters
+  $('#reset-button').click(function() {
+    if (confirm("Are you sure you want to reset both counters?")) {
+      localStorage.removeItem('trackedData');
+      localStorage.removeItem('eatenMeals');
+      updateProgressBars();
+      loadEatenMeals();
+      $('#tracked-items-list').empty();
+      showMessage("Counters reset successfully.");
+    }
+  });
+
+  $(document).ready(function(){
+    loadEatenMeals();
+    $("#expand-button").click(function(){
+        $("#meal-buttons").attr("class", "meal-buttons-full");
+        $("#contract-button").css("display","block");
+        $("#expand-button").css("display","none");
+    });
+    $("#contract-button").click(function(){
+        $("#meal-buttons").removeClass("meal-buttons-full");
+        $("#expand-button").css("display","block");
+        $("#contract-button").css("display","none");
+    });
+  });
+</script>
+
+</body>
+</html>
